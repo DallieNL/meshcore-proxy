@@ -7,7 +7,7 @@
 services:
   # USB Serial connection profile
   meshcore-proxy-serial:
-    build: .
+    image: ghcr.io/rgregg/meshcore-proxy:latest
     profiles: ["serial"]
     ports:
       - "5000:5000"
@@ -18,7 +18,7 @@ services:
 
   # BLE connection profile (requires host network for Bluetooth)
   meshcore-proxy-ble:
-    build: .
+    image: ghcr.io/rgregg/meshcore-proxy:latest
     profiles: ["ble"]
     network_mode: host
     privileged: true

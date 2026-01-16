@@ -51,6 +51,10 @@ pip install -e .
 ### Docker
 
 ```bash
+# Pull the published image (recommended)
+docker pull ghcr.io/rgregg/meshcore-proxy:latest
+
+# Or build locally
 docker build -t meshcore-proxy .
 ```
 
@@ -179,7 +183,7 @@ docker run -d \
   --name meshcore-proxy \
   --device=/dev/ttyUSB0 \
   -p 5000:5000 \
-  meshcore-proxy \
+  ghcr.io/rgregg/meshcore-proxy:latest \
   --serial /dev/ttyUSB0
 
 # macOS
@@ -187,7 +191,7 @@ docker run -d \
   --name meshcore-proxy \
   --device=/dev/cu.usbmodem101 \
   -p 5000:5000 \
-  meshcore-proxy \
+  ghcr.io/rgregg/meshcore-proxy:latest \
   --serial /dev/cu.usbmodem101
 ```
 
@@ -202,7 +206,7 @@ docker run -d \
   --net=host \
   --privileged \
   -v /var/run/dbus:/var/run/dbus:ro \
-  meshcore-proxy \
+  ghcr.io/rgregg/meshcore-proxy:latest \
   --ble 12:34:56:78:90:AB
 ```
 
