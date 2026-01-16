@@ -26,5 +26,5 @@ services:
       - /var/run/dbus:/var/run/dbus:ro
     environment:
       - BLE_ADDRESS=${BLE_ADDRESS:-}
-    command: ["--ble", "${BLE_ADDRESS}", "--port", "5000"]
+    command: ["--ble", "${BLE_ADDRESS}", "--port", "5000"]  # don't need to expose PORT because of host networking
     restart: unless-stopped
