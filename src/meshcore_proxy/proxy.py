@@ -138,6 +138,14 @@ class MeshCoreProxy:
         self._tcp_server: Optional[asyncio.Server] = None
         self._clients: dict[tuple, TCPClient] = {}
         self._is_ble = False
+        self._is_running = False
+        self._radio_connected = False
+
+    def _handle_radio_disconnect(self) -> None:
+        """Handle radio disconnection."""
+        if self._radio_connected:
+            self._radio_connected = False
+            logger.warning("Radio disconnected.")
 
     def _log_event(
         self,
@@ -195,7 +203,7 @@ class MeshCoreProxy:
 
     async def _handle_radio_rx(self, payload: bytes) -> None:
         """Handle data received from the radio - forward to all TCP clients."""
-        if len(payload) == 0:
+        if not self._radio_connected or not payload:
             return
 
         # Log the event
@@ -224,15 +232,19 @@ class MeshCoreProxy:
             logger.error("Radio not connected")
             return
 
-        # Log the event
-        packet_type = payload[0] if payload else 0
-        self._log_event("TO_RADIO", packet_type, payload)
+        try:
+            # Log the event
+            packet_type = payload[0] if payload else 0
+            self._log_event("TO_RADIO", packet_type, payload)
 
-        # BLE sends raw payload, Serial/TCP adds framing
-        if self._is_ble:
-            await self._radio_connection.send(payload)
-        else:
-            await self._radio_connection.send(payload)
+            # BLE sends raw payload, Serial/TCP adds framing
+            if self._is_ble:
+                await self._radio_connection.send(payload)
+            else:
+                await self._radio_connection.send(payload)
+        except Exception as e:
+            logger.error(f"Failed to send to radio: {e}")
+            self._handle_radio_disconnect()
 
     def _parse_tcp_frame(self, client: TCPClient, data: bytes) -> list[bytes]:
         """
@@ -348,6 +360,7 @@ class MeshCoreProxy:
                 await self._handler(data)
 
         self._radio_connection.set_reader(ReaderAdapter(self._handle_radio_rx))
+        self._radio_connection.set_disconnect_handler(self._handle_radio_disconnect)
 
         # Connect
         result = await self._radio_connection.connect()
@@ -355,6 +368,7 @@ class MeshCoreProxy:
             raise ConnectionError("Failed to connect to radio")
 
         logger.info(f"Connected to radio: {result}")
+        self._radio_connected = True
 
     async def _start_tcp_server(self) -> None:
         """Start the TCP server."""
@@ -368,23 +382,43 @@ class MeshCoreProxy:
 
     async def run(self) -> None:
         """Run the proxy."""
+        self._is_running = True
         conn_type = "serial" if self.serial_port else "BLE"
         conn_target = self.serial_port or self.ble_address
         logger.info(f"Starting MeshCore Proxy ({conn_type}: {conn_target})...")
 
-        # Connect to radio
-        await self._connect_radio()
-
-        # Start TCP server
         await self._start_tcp_server()
 
-        # Run until cancelled
-        async with self._tcp_server:
-            await self._tcp_server.serve_forever()
+        reconnect_delay = 5  # Initial delay in seconds
+        max_delay = 300  # 5 minutes
+
+        try:
+            while self._is_running:
+                if not self._radio_connected:
+                    try:
+                        await self._connect_radio()
+                        reconnect_delay = 5  # Reset delay on successful connection
+                    except Exception as e:
+                        logger.error(f"Failed to connect to radio: {e}. Retrying in {reconnect_delay}s...")
+                        await asyncio.sleep(reconnect_delay)
+                        reconnect_delay = min(reconnect_delay * 2, max_delay)
+                else:
+                    # Radio is connected, just wait
+                    await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            logger.info("Run cancelled, stopping...")
+        finally:
+            # Clean shutdown
+            await self.stop()
+            logger.info("Proxy run loop stopped.")
 
     async def stop(self) -> None:
         """Stop the proxy."""
+        if not self._is_running:
+            return
+
         logger.info("Stopping MeshCore Proxy...")
+        self._is_running = False
 
         # Close all clients
         for addr in list(self._clients.keys()):
@@ -396,5 +430,7 @@ class MeshCoreProxy:
             await self._tcp_server.wait_closed()
 
         # Disconnect radio
-        if self._radio_connection:
+        if self._radio_connection and self._radio_connected:
             await self._radio_connection.disconnect()
+        
+        self._radio_connected = False
