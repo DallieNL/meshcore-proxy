@@ -1,6 +1,0 @@
-[submodule "MeshCore"]
-	path = MeshCore
-	url = https://github.com/meshcore-dev/MeshCore.git
-[submodule "meshcore_py"]
-	path = meshcore_py
-	url = https://github.com/fdlamotte/meshcore_py
