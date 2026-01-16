@@ -24,7 +24,9 @@ class MockRadio:
     async def disconnect(self):
         self.is_connected = False
         if self.on_disconnect:
-            self.on_disconnect()
+            result = self.on_disconnect()
+            if asyncio.iscoroutine(result):
+                await result
 
     async def send(self, data):
         if not self.is_connected:

@@ -141,11 +141,14 @@ class MeshCoreProxy:
         self._is_running = False
         self._radio_connected = False
 
-    def _handle_radio_disconnect(self) -> None:
+    async def _handle_radio_disconnect(self, reason: Optional[str] = None) -> None:
         """Handle radio disconnection."""
         if self._radio_connected:
             self._radio_connected = False
-            logger.warning("Radio disconnected.")
+            if reason:
+                logger.warning("Radio disconnected: %s", reason)
+            else:
+                logger.warning("Radio disconnected.")
 
     def _log_event(
         self,
@@ -244,7 +247,7 @@ class MeshCoreProxy:
                 await self._radio_connection.send(payload)
         except Exception as e:
             logger.error(f"Failed to send to radio: {e}")
-            self._handle_radio_disconnect()
+            await self._handle_radio_disconnect()
 
     def _parse_tcp_frame(self, client: TCPClient, data: bytes) -> list[bytes]:
         """
@@ -360,7 +363,17 @@ class MeshCoreProxy:
                 await self._handler(data)
 
         self._radio_connection.set_reader(ReaderAdapter(self._handle_radio_rx))
-        self._radio_connection.set_disconnect_handler(self._handle_radio_disconnect)
+
+        disconnect_setter = getattr(self._radio_connection, "set_disconnect_handler", None)
+        if callable(disconnect_setter):
+            disconnect_setter(self._handle_radio_disconnect)
+        else:
+            callback_setter = getattr(self._radio_connection, "set_disconnect_callback", None)
+            if not callable(callback_setter):
+                raise AttributeError(
+                    "Radio connection object does not expose a disconnect handler setter"
+                )
+            callback_setter(self._handle_radio_disconnect)
 
         # Connect
         result = await self._radio_connection.connect()
