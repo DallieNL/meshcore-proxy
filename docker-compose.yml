@@ -1,0 +1,30 @@
+# Docker Compose configurations for meshcore-proxy
+#
+# Usage:
+#   USB Serial: docker compose --profile serial up
+#   BLE:        docker compose --profile ble up
+
+services:
+  # USB Serial connection profile
+  meshcore-proxy-serial:
+    build: .
+    profiles: ["serial"]
+    ports:
+      - "5000:5000"
+    devices:
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
+    command: ["--serial", "/dev/ttyUSB0", "--port", "5000"]
+    restart: unless-stopped
+
+  # BLE connection profile (requires host network for Bluetooth)
+  meshcore-proxy-ble:
+    build: .
+    profiles: ["ble"]
+    network_mode: host
+    privileged: true
+    volumes:
+      - /var/run/dbus:/var/run/dbus:ro
+    environment:
+      - BLE_ADDRESS=${BLE_ADDRESS:-}
+    command: ["--ble", "${BLE_ADDRESS}", "--port", "5000"]
+    restart: unless-stopped
