@@ -19,8 +19,17 @@ Examples:
   # Connect via USB serial
   meshcore-proxy --serial /dev/ttyUSB0
 
-  # Connect via BLE
+  # Connect via BLE (explicit MAC)
   meshcore-proxy --ble 12:34:56:78:90:AB
+
+  # Auto-scan for MeshCore BLE devices (picks strongest RSSI)
+  meshcore-proxy --ble auto --log-events
+
+  # Pin to a specific device by advertised name
+  meshcore-proxy --ble auto --ble-name MeshCore-D_creek_RAK
+
+  # Specify BLE adapter (default: auto-detect USB adapter)
+  meshcore-proxy --ble auto --adapter hci1
 
   # With event logging
   meshcore-proxy --serial /dev/ttyUSB0 --log-events
@@ -39,8 +48,8 @@ Examples:
     )
     conn_group.add_argument(
         "--ble",
-        metavar="MAC",
-        help="BLE device MAC address (e.g., 12:34:56:78:90:AB)",
+        metavar="ADDRESS",
+        help='BLE device MAC address or "auto" to scan (e.g., 12:34:56:78:90:AB or auto)',
     )
 
     # TCP server options
@@ -69,6 +78,16 @@ Examples:
         "--ble-pin",
         default="123456",
         help="BLE pairing PIN (default: 123456)",
+    )
+    parser.add_argument(
+        "--ble-name",
+        metavar="NAME",
+        help="Pin to a specific MeshCore device by advertised name (e.g., MeshCore-D_creek_RAK). Only used with --ble auto.",
+    )
+    parser.add_argument(
+        "--adapter",
+        default="auto",
+        help='BLE adapter to use: "auto" to detect USB adapter, or explicit hciX (default: auto)',
     )
 
     # Event logging options (mutually exclusive)
@@ -182,6 +201,8 @@ def main() -> int:
         ble_address=args.ble,
         baud_rate=args.baud,
         ble_pin=args.ble_pin,
+        ble_name=args.ble_name,
+        ble_adapter=args.adapter,
         tcp_host=args.host,
         tcp_port=args.port,
         event_log_level=event_log_level,

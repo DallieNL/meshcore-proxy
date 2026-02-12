@@ -76,8 +76,14 @@ meshcore-proxy --serial COM3
 ### Bluetooth LE
 
 ```bash
-# Linux/Windows - use MAC address
+# Explicit MAC address
 meshcore-proxy --ble 12:34:56:78:90:AB
+
+# Auto-scan: finds the strongest MeshCore device nearby
+meshcore-proxy --ble auto
+
+# Pin to a specific device by name
+meshcore-proxy --ble auto --ble-name MeshCore-D_creek_RAK
 
 # macOS - use UUID or device name (MAC addresses not supported)
 meshcore-proxy --ble 7921236E-065C-0C7B-C04D-7F60E849DC47
@@ -99,7 +105,7 @@ meshcore-proxy [OPTIONS]
 
 Connection (one required):
   --serial PORT     Serial port path (e.g., /dev/ttyUSB0)
-  --ble ADDR        BLE device address (see platform notes below)
+  --ble ADDRESS     BLE device MAC address or "auto" to scan
 
 Server options:
   --host ADDR       TCP bind address (default: 0.0.0.0)
@@ -110,6 +116,8 @@ Serial options:
 
 BLE options:
   --ble-pin PIN     BLE pairing PIN (default: 123456)
+  --ble-name NAME   Pin to device by advertised name (with --ble auto)
+  --adapter ADAPTER BLE adapter: "auto" or hciX (default: auto)
 
 Logging options:
   --quiet                  Suppress non-error output
@@ -173,6 +181,28 @@ meshcore-proxy --serial /dev/ttyUSB0 --log-events --json
 {"direction": "FROM_RADIO", "packet_type": "SELF_INFO", "packet_type_raw": 5}
 ```
 
+## BLE Auto-Scan Mode (Linux)
+
+When using `--ble auto`, the proxy enters **direct BLE mode** with features designed for headless SBC deployments (Raspberry Pi, Orange Pi, etc.):
+
+- **Auto-scan**: Discovers nearby MeshCore devices and connects to the one with the strongest signal (RSSI)
+- **Name pinning**: Use `--ble-name MeshCore-MyDevice` to always connect to a specific device regardless of RSSI
+- **USB adapter detection**: Automatically finds USB Bluetooth adapters via sysfs (`DRIVER=btusb`), skipping built-in UART adapters that often lack GATT capability
+- **HCI reset recovery**: After 3 consecutive `InProgress` errors from BlueZ, resets the HCI adapter (`hciconfig reset`) to clear stale state
+- **Device blacklisting**: After 2 consecutive notify/connect failures on a device, blacklists it and scans for alternatives
+- **Health checks**: Monitors BLE connection every 30 seconds and triggers reconnect if the link is lost
+- **Exponential backoff**: Reconnect delay ramps from 5s to 120s max, resets on successful connection
+
+```bash
+# Headless deployment: auto-detect adapter, scan for device, full resilience
+meshcore-proxy --ble auto --log-events
+
+# Pin to a known device name on a specific adapter
+meshcore-proxy --ble auto --ble-name MeshCore-D_creek_RAK --adapter hci1 --log-events
+```
+
+> **Note:** When using an explicit MAC address (e.g., `--ble AA:BB:CC:DD:EE:FF`), the proxy uses the meshcore library's `BLEConnection` for backwards compatibility. Auto-scan features are only active with `--ble auto`.
+
 ## Running with Docker
 
 ### USB Serial
@@ -200,7 +230,7 @@ docker run -d \
 BLE in Docker requires Linux with BlueZ. It does not work on macOS or Windows Docker.
 
 ```bash
-# Requires host network and privileges for Bluetooth access
+# Explicit MAC address
 docker run -d \
   --name meshcore-proxy \
   --net=host \
@@ -208,6 +238,15 @@ docker run -d \
   -v /var/run/dbus:/var/run/dbus:ro \
   ghcr.io/rgregg/meshcore-proxy:latest \
   --ble 12:34:56:78:90:AB
+
+# Auto-scan mode with name pinning
+docker run -d \
+  --name meshcore-proxy \
+  --net=host \
+  --privileged \
+  -v /var/run/dbus:/var/run/dbus:ro \
+  ghcr.io/rgregg/meshcore-proxy:latest \
+  --ble auto --ble-name MeshCore-MyDevice --log-events
 ```
 
 ### Docker Compose
@@ -257,11 +296,14 @@ Create `/etc/systemd/system/meshcore-proxy.service`:
 ```ini
 [Unit]
 Description=MeshCore Proxy
-After=network.target
+After=network.target bluetooth.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/meshcore-proxy --serial /dev/ttyUSB0 --log-events
+# Serial mode:
+# ExecStart=/usr/local/bin/meshcore-proxy --serial /dev/ttyUSB0 --log-events
+# BLE auto-scan mode:
+ExecStart=/usr/local/bin/meshcore-proxy --ble auto --ble-name MeshCore-MyDevice --log-events
 Restart=always
 RestartSec=10
 
@@ -301,6 +343,14 @@ meshcore-proxy --serial /dev/ttyUSB0 --port 5001
 - **macOS**: Use UUID or device name, not MAC address
 - **Linux**: You may need `sudo` or add user to `bluetooth` group
 - **PIN-protected devices**: Pair at the OS level first (System Preferences on macOS, `bluetoothctl` on Linux), then the proxy will use the existing pairing
+
+### BLE auto-scan finds no devices
+
+- Ensure the MeshCore radio is powered on and advertising (LED blinking)
+- Check that `bluetoothctl scan on` shows the device
+- Try specifying the adapter explicitly: `--adapter hci1`
+- If using a USB BLE adapter, verify it appears in `hciconfig -a`
+- On Raspberry Pi, the built-in Bluetooth (BCM43438) often cannot do GATT — use a USB BLE 5.x adapter
 
 ### Radio not responding
 
