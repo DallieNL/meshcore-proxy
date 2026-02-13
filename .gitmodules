@@ -1,0 +1,3 @@
+[submodule "clients/meshcore-open"]
+	path = clients/meshcore-open
+	url = https://github.com/zjs81/meshcore-open.git

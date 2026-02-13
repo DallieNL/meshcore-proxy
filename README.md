@@ -22,6 +22,7 @@ MeshCore Proxy connects to a MeshCore radio via USB Serial or Bluetooth LE and e
 ```
 
 **Supported clients:**
+- [MeshCore Open](https://github.com/zjs81/meshcore-open) — cross-platform Flutter app ([download prebuilt releases](https://github.com/DallieNL/meshcore-proxy/releases))
 - [MeshCore-CLI](https://github.com/fdlamotte/meshcore-cli)
 - [Home Assistant MeshCore Integration](https://github.com/awolden/meshcore-ha)
 - [MeshCore Apps](https://meshcore.co.uk/apps.html) (via TCP)
@@ -357,6 +358,20 @@ meshcore-proxy --serial /dev/ttyUSB0 --port 5001
 - Check that the radio is running companion firmware (not repeater/room server)
 - Verify the serial port/BLE address is correct
 - Try power cycling the radio
+
+## MeshCore Open Client
+
+Prebuilt [MeshCore Open](https://github.com/zjs81/meshcore-open) clients (Android APK + Windows) are available on the [Releases page](https://github.com/DallieNL/meshcore-proxy/releases). These builds include TCP connection support for connecting to this proxy remotely.
+
+To build from source, the Flutter client is included as a submodule:
+
+```bash
+git clone --recursive https://github.com/DallieNL/meshcore-proxy.git
+cd meshcore-proxy/clients/meshcore-open
+flutter pub get
+flutter build apk        # Android
+flutter build windows     # Windows
+```
 
 ## Requirements
 
