@@ -49,6 +49,17 @@ else
     info "System packages OK (bluez, python3-venv, mosquitto)"
 fi
 
+# Grant the service user permission to reset BLE adapters without sudo
+# hciconfig requires CAP_NET_ADMIN; sudoers rule allows passwordless access
+SUDOERS_FILE="/etc/sudoers.d/meshcore-hciconfig"
+if [ ! -f "$SUDOERS_FILE" ]; then
+    info "Adding sudoers rule for hciconfig (BLE adapter reset)..."
+    echo "${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/hciconfig" | sudo tee "$SUDOERS_FILE" > /dev/null
+    sudo chmod 0440 "$SUDOERS_FILE"
+else
+    info "sudoers rule for hciconfig already exists"
+fi
+
 # Python: bleak (system-wide, avoids venv dbus-fast issues)
 if ! python3 -c "import bleak" 2>/dev/null; then
     info "Installing bleak (BLE library)..."
@@ -709,6 +720,10 @@ RestartSec=30
 Environment=PYTHONUNBUFFERED=1
 StandardOutput=journal
 StandardError=journal
+
+# Allow hciconfig reset without root (CAP_NET_ADMIN for HCI adapter control)
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
 
 [Install]
 WantedBy=multi-user.target
